@@ -141,7 +141,15 @@ func HolidaysBetween(start, end time.Time) []HariRaya {
 			continue
 		}
 
-		sasihIdx, sasihName := lunar.SasihForDate(p.Date)
+		// For Tilem: use TilemSasih (the sasih the Tilem belongs to).
+		// For Purnama: use SasihForDate (the sasih the date is currently in).
+		var sasihIdx int
+		var sasihName string
+		if p.Phase == lunar.NewMoon {
+			sasihIdx, sasihName = lunar.TilemSasih(p.Date)
+		} else {
+			sasihIdx, sasihName = lunar.SasihForDate(p.Date)
+		}
 
 		if p.Phase == lunar.FullMoon {
 			// Purnama for each Sasih

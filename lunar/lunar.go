@@ -220,6 +220,14 @@ func PhasesInYear(year int) []MoonPhase {
 	return PhasesBetween(start, end)
 }
 
+// phaseDate converts JDE to a Balinese date (UTC+8 approx).
+// We subtract 0.5 days (12 hours) to better align with Balinese ritual day
+// boundaries where events in the early AM are often counted as the previous day.
+func phaseDate(jde float64) time.Time {
+	t := jdeToTime(jde - 0.5)
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+}
+
 // PhasesBetween returns all new moon and full moon events between start (inclusive)
 // and end (exclusive).
 func PhasesBetween(start, end time.Time) []MoonPhase {
@@ -232,12 +240,12 @@ func PhasesBetween(start, end time.Time) []MoonPhase {
 		k := k0
 		for {
 			jde := phaseCorrection(k, phase)
-			t := jdeToTime(jde)
-			if t.Before(start) {
+			d := phaseDate(jde)
+			if d.Before(start) {
 				k++
 				continue
 			}
-			if !t.Before(end) {
+			if !d.Before(end) {
 				break
 			}
 			pt := NewMoon
@@ -245,7 +253,7 @@ func PhasesBetween(start, end time.Time) []MoonPhase {
 				pt = FullMoon
 			}
 			results = append(results, MoonPhase{
-				Date:  time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC),
+				Date:  d,
 				Phase: pt,
 				JDE:   jde,
 			})
@@ -276,10 +284,9 @@ func NextPhase(t time.Time, phase PhaseType) MoonPhase {
 	k := kForDate(t.AddDate(0, -1, 0), phaseOffset)
 	for {
 		jde := phaseCorrection(k, phaseOffset)
-		got := jdeToTime(jde)
-		day := time.Date(got.Year(), got.Month(), got.Day(), 0, 0, 0, 0, time.UTC)
-		if !day.Before(t) {
-			return MoonPhase{Date: day, Phase: phase, JDE: jde}
+		d := phaseDate(jde)
+		if !d.Before(t) {
+			return MoonPhase{Date: d, Phase: phase, JDE: jde}
 		}
 		k++
 	}
@@ -301,48 +308,60 @@ var SasihNames = [12]string{
 // We use the convention: the Balinese New Year (Nyepi) follows Tilem Kasanga.
 // The Balinese lunar year begins with Kasa after the Tilem of the Kasanga month.
 // We count new moons relative to the Tilem Kadasa reference.
+// SasihForDate returns the Sasih (Balinese lunar month) index and name for a date.
+//
+// Balinese lunar month convention:
+// - Sasih runs from the day AFTER Tilem to the next Tilem (inclusive).
+// - The Tilem day itself is the LAST day of that sasih.
+// - The day after Tilem begins the NEXT sasih (penanggal 1).
+//
+// So if date == Tilem Kasanga → sasih = Kasanga.
+// If date == day after Tilem Kasanga → sasih = Kadasa.
 func SasihForDate(t time.Time) (int, string) {
-	// Find the most recent new moon (Tilem) at or before t
-	// Then determine which Sasih we're in by counting from a known reference.
+	day := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 
-	// Known reference: Tilem Kasa ~ around July/August each year.
-	// We use a simple approximation based on the lunar month count from a known epoch.
-
-	// Reference: New Moon on 2000-01-06 is approximately Tilem Kapitu (7th month).
-	// Balinese year begins from Tilem Kadasa (10th month) + Nyepi + Kasa (1st month).
-
-	// Simpler approach: find current lunation number and mod 12
-	// JDE of reference new moon (Tilem): 2000-01-06 = JDE 2451549.96 ≈ k=0 in Meeus
-	// Meeus k=0 → 2000-01-06 18:14 UT → this is approximately Tilem Kapitu (month 7)
-	// So sasihIndex = (k + 7 - 1) mod 12 to get 0-indexed (Kasa=0)
-	// But we need to find k for the current lunation.
-
-	// Find the Tilem just before or on t
-	prevTilem := NextPhase(t.AddDate(0, -2, 0), NewMoon)
-	// Make sure we have the one just before t
-	for prevTilem.Date.After(t) {
+	// Find the most recent Tilem (new moon) at or before this date.
+	prevTilem := NextPhase(day.AddDate(0, -2, 0), NewMoon)
+	for prevTilem.Date.After(day) {
 		prevTilem = NextPhase(prevTilem.Date.AddDate(0, -2, 0), NewMoon)
 	}
-	// Advance to find the Tilem just before or on t
 	for {
 		next := NextPhase(prevTilem.Date.AddDate(0, 0, 1), NewMoon)
-		if next.Date.After(t) {
+		if next.Date.After(day) {
 			break
 		}
 		prevTilem = next
 	}
 
-	// k value for this new moon (Meeus convention)
-	// k = (year - 2000) * 12.3685, rounded
+	// k value for this Tilem
 	k := math.Round((float64(prevTilem.Date.Year()) +
 		float64(prevTilem.Date.YearDay()-1)/365.25 - 2000) * 12.3685)
 
-	// At k=0 (2000-01-06), offset +8 aligns with known Balinese sasih:
-	// Jan 2026 Tilem = Kapitu(6), Feb = Kawolu(7), Mar = Kasanga(8), etc.
-	sasihIndex := int(math.Mod(k+8, 12))
-	if sasihIndex < 0 {
-		sasihIndex += 12
+	// Base sasih for this Tilem: offset +8 aligns with known references.
+	// At k=0 (2000-01-06) → Kapitu(6). Verified: Jan 2026 Tilem = Kapitu.
+	tilemSasih := int(math.Mod(k+8, 12))
+	if tilemSasih < 0 {
+		tilemSasih += 12
+	}
+
+	// If the date IS the Tilem day → sasih = tilemSasih (last day of that month).
+	// If the date is AFTER the Tilem → we're in penanggal of the NEXT sasih.
+	sasihIndex := tilemSasih
+	if day.After(prevTilem.Date) {
+		sasihIndex = (tilemSasih + 1) % 12
 	}
 
 	return sasihIndex, SasihNames[sasihIndex]
+}
+
+// TilemSasih returns the sasih index for a given Tilem date (the Tilem itself).
+// This is used by hariraya to check e.g. Tilem Kasanga for Nyepi.
+func TilemSasih(tilemDate time.Time) (int, string) {
+	k := math.Round((float64(tilemDate.Year()) +
+		float64(tilemDate.YearDay()-1)/365.25 - 2000) * 12.3685)
+	idx := int(math.Mod(k+8, 12))
+	if idx < 0 {
+		idx += 12
+	}
+	return idx, SasihNames[idx]
 }

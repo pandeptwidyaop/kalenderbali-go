@@ -137,12 +137,19 @@ func Sangawara(t time.Time) (int, string) {
 
 // ── Urip calculation ─────────────────────────────────────────────────────────
 
-// Urip returns the combined urip value used for Ekawara, Dwiwara, and Dasawara.
-func Urip(t time.Time) int {
+// RawUrip returns the sum of Pancawara urip + Saptawara urip (no +1).
+// This is the "neptu" value displayed on kalenderbali.org.
+func RawUrip(t time.Time) int {
 	d := pawukon.DayOfCycle(t)
 	pancaIdx := d % 5
 	saptaIdx := d % 7
-	val := PancawaraUrip[pancaIdx] + SaptawaraUrip[saptaIdx] + 1
+	return PancawaraUrip[pancaIdx] + SaptawaraUrip[saptaIdx]
+}
+
+// Urip returns the Dasawara urip value = (rawUrip + 1), wrapped to 1-10.
+// Used for Ekawara, Dwiwara, and Dasawara determination.
+func Urip(t time.Time) int {
+	val := RawUrip(t) + 1
 	if val > 10 {
 		val -= 10
 	}
@@ -150,6 +157,7 @@ func Urip(t time.Time) int {
 }
 
 // ── Ekawara (1-day) ─────────────────────────────────────────────────────────
+// Ekawara uses the calculated urip (with +1): even = Luang, odd = –
 
 func Ekawara(t time.Time) string {
 	if Urip(t)%2 == 0 {
@@ -165,9 +173,9 @@ var DwiwaraNames = [2]string{"Menga", "Pepet"}
 func Dwiwara(t time.Time) (int, string) {
 	u := Urip(t)
 	if u%2 == 0 {
-		return 1, "Pepet"
+		return 1, "Pepet" // even = Pepet (tertutup)
 	}
-	return 0, "Menga"
+	return 0, "Menga" // odd = Menga (terbuka)
 }
 
 // ── Dasawara (10-day) ───────────────────────────────────────────────────────
@@ -239,7 +247,7 @@ func Calculate(t time.Time) WewaranResult {
 	dwiIdx, dwiName := Dwiwara(t)
 	dasaIdx, dasaName := Dasawara(t)
 	ekaName := Ekawara(t)
-	u := Urip(t)
+	u := RawUrip(t) // Display the raw urip sum (without +1)
 
 	return WewaranResult{
 		PawukonDay:     d,

@@ -84,6 +84,9 @@ kalenderbali pararasan all
 # Ramalan kelahiran (watak, laku, wuku)
 kalenderbali lahir 1997-10-08
 
+# Kalender bulanan
+kalenderbali bulan 2026-03
+
 # Ramalan jodoh (2 tanggal lahir)
 kalenderbali jodoh 1997-10-08 2002-08-17
 
@@ -188,6 +191,7 @@ func main() {
 | `dewasa-ala [tahun]` | Semua hari buruk setahun |
 | `pararasan [YYYY-MM-DD\|all]` | Laku untuk tanggal atau semua 35 kombinasi |
 | `lahir <YYYY-MM-DD>` | Ramalan kelahiran (laku, watak, wuku) |
+| `bulan [YYYY-MM]` | Kalender Bali bulanan |
 | `jodoh <tgl1> <tgl2>` | Ramalan kecocokan jodoh |
 
 Semua perintah mendukung flag `--json` untuk output machine-readable.

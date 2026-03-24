@@ -12,6 +12,7 @@ import (
 
 	"github.com/pandeptwidyaop/kalenderbali-go/dewasa"
 	"github.com/pandeptwidyaop/kalenderbali-go/hariraya"
+	"github.com/pandeptwidyaop/kalenderbali-go/jodoh"
 	"github.com/pandeptwidyaop/kalenderbali-go/lunar"
 	"github.com/pandeptwidyaop/kalenderbali-go/pararasan"
 	"github.com/pandeptwidyaop/kalenderbali-go/wewaran"
@@ -722,6 +723,140 @@ func cmdLahir(args []string) {
 	fmt.Printf("   %s\n", p.LakunDesc)
 }
 
+// ── Jodoh Command ─────────────────────────────────────────────────────────────
+
+func cmdJodoh(args []string) {
+	if len(args) < 2 {
+		bail("Butuh 2 tanggal lahir (pria & wanita).\nContoh: kalenderbali jodoh 1997-10-08 2002-08-17")
+	}
+	t1, err := parseDate(args[0])
+	if err != nil {
+		bail("Tanggal pria: %v", err)
+	}
+	t2, err := parseDate(args[1])
+	if err != nil {
+		bail("Tanggal wanita: %v", err)
+	}
+
+	results := jodoh.CheckJodoh(t1, t2)
+
+	if jsonOut {
+		w1 := wewaran.Calculate(t1)
+		w2 := wewaran.Calculate(t2)
+		printJSON(map[string]any{
+			"pria":    map[string]any{"tanggal": t1.Format("2006-01-02"), "saptawara": w1.SaptawaraName, "pancawara": w1.PancawaraName, "urip": w1.Urip},
+			"wanita":  map[string]any{"tanggal": t2.Format("2006-01-02"), "saptawara": w2.SaptawaraName, "pancawara": w2.PancawaraName, "urip": w2.Urip},
+			"results": results,
+		})
+		return
+	}
+
+	w1 := wewaran.Calculate(t1)
+	w2 := wewaran.Calculate(t2)
+
+	fmt.Println("💑  Kecocokan Jodoh — Wariga Bali")
+	fmt.Println(strings.Repeat("═", 56))
+	fmt.Printf("  👨  Pria   : %s  (%s %s)\n", t1.Format("02 Jan 2006"), w1.SaptawaraName, w1.PancawaraName)
+	fmt.Printf("  👩  Wanita : %s  (%s %s)\n", t2.Format("02 Jan 2006"), w2.SaptawaraName, w2.PancawaraName)
+	fmt.Printf("  Neptu Pria   : %d  |  Neptu Wanita : %d\n", w1.Urip, w2.Urip)
+	hr()
+
+	good := 0
+	for _, r := range results {
+		icon := "💛"
+		if r.IsGood {
+			icon = "💚"
+			good++
+		} else if r.Score <= 2 {
+			icon = "❤️\u200d🩹"
+		}
+		fmt.Printf("\n  %s  %s\n", icon, r.Method)
+		fmt.Printf("     %s%s\n", r.Prediction, func() string {
+			if r.Score > 0 {
+				return fmt.Sprintf("                     (skor: %d)", r.Score)
+			}
+			return ""
+		}())
+		fmt.Printf("     %s\n", r.Description)
+	}
+	hr()
+	pct := good * 100 / len(results)
+	verdict := "⚠️  Perlu Pertimbangan"
+	if pct >= 66 {
+		verdict = "💚  Cocok!"
+	} else if pct >= 50 {
+		verdict = "💛  Cukup Baik"
+	}
+	fmt.Printf("  Hasil: %d/%d metode positif (%d%%)  —  %s\n", good, len(results), pct, verdict)
+}
+
+// ── Bulan Command ─────────────────────────────────────────────────────────────
+
+func cmdBulan(args []string) {
+	var year, month int
+	if len(args) > 0 {
+		parts := strings.Split(args[0], "-")
+		if len(parts) == 2 {
+			y, e1 := strconv.Atoi(parts[0])
+			m, e2 := strconv.Atoi(parts[1])
+			if e1 != nil || e2 != nil || m < 1 || m > 12 {
+				bail("Format: YYYY-MM. Contoh: kalenderbali bulan 2026-03")
+			}
+			year, month = y, m
+		} else {
+			bail("Format: YYYY-MM. Contoh: kalenderbali bulan 2026-03")
+		}
+	} else {
+		n := time.Now()
+		year, month = n.Year(), int(n.Month())
+	}
+
+	start := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	daysInMonth := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0, time.UTC).Day()
+
+	if jsonOut {
+		var days []map[string]any
+		for d := 1; d <= daysInMonth; d++ {
+			t := time.Date(year, time.Month(month), d, 0, 0, 0, 0, time.UTC)
+			w := wewaran.Calculate(t)
+			hr2 := hariraya.ForDate(t)
+			var hrNames []string
+			for _, h := range hr2 {
+				hrNames = append(hrNames, h.Name)
+			}
+			days = append(days, map[string]any{
+				"date":      t.Format("2006-01-02"),
+				"saptawara": w.SaptawaraName,
+				"pancawara": w.PancawaraName,
+				"wuku":      w.WukuName,
+				"hari_raya": hrNames,
+			})
+		}
+		printJSON(days)
+		return
+	}
+
+	fmt.Printf("📆  Kalender Bali — %s\n", start.Format("January 2006"))
+	fmt.Println(strings.Repeat("═", 62))
+	for d := 1; d <= daysInMonth; d++ {
+		t := time.Date(year, time.Month(month), d, 0, 0, 0, 0, time.UTC)
+		w := wewaran.Calculate(t)
+		hr2 := hariraya.ForDate(t)
+		hrStr := ""
+		if len(hr2) > 0 {
+			var names []string
+			for _, h := range hr2 {
+				names = append(names, h.Name)
+			}
+			hrStr = "  🙏 " + strings.Join(names, ", ")
+		}
+		fmt.Printf("  %s %02d  %-8s %-8s %-12s%s\n",
+			t.Format("Mon"), d,
+			w.SaptawaraName, w.PancawaraName,
+			w.WukuName, hrStr)
+	}
+}
+
 // ── Help & Main ───────────────────────────────────────────────────────────────
 
 func usage() {
@@ -741,6 +876,8 @@ PERINTAH:
   dewasa-ala [tahun]         Semua hari buruk di tahun ini/tahun tertentu
   pararasan [YYYY-MM-DD|all] Laku (pararasan) untuk tanggal, atau tampilkan semua 35 kombinasi
   lahir <YYYY-MM-DD>         Ramalan kelahiran: laku, watak, wuku
+  jodoh <tgl1> <tgl2>        Kecocokan jodoh (6 metode wariga)
+  bulan [YYYY-MM]            Kalender Bali bulanan
 
 FLAG:
   --json                     Output dalam format JSON
@@ -753,6 +890,8 @@ CONTOH:
   kalenderbali dewasa-ayu 2026
   kalenderbali pararasan all
   kalenderbali lahir 1997-10-08
+  kalenderbali jodoh 1997-10-08 2002-08-17
+  kalenderbali bulan 2026-03
   kalenderbali hariraya 2026 --json`)
 }
 
@@ -805,6 +944,10 @@ func main() {
 		cmdPararasan(rest)
 	case "lahir":
 		cmdLahir(rest)
+	case "jodoh":
+		cmdJodoh(rest)
+	case "bulan":
+		cmdBulan(rest)
 	case "help", "--help", "-h":
 		usage()
 	default:

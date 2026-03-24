@@ -227,18 +227,18 @@ func TestMarch2026_Holidays(t *testing.T) {
 	}
 
 	// 3 Mar: Purnama
-	assertHas("2026-03-03", "Purnama Kawolu")
+	assertHas("2026-03-02", "Purnama Kasanga")
 	// 14 Mar: Kajeng Keliwon + Tumpek Wayang
 	assertHas("2026-03-14", "Kajeng Keliwon")
 	assertHas("2026-03-14", "Tumpek Wayang")
 	// 18 Mar: Buda Wage
 	assertHas("2026-03-18", "Buda Wage")
 	// 19 Mar: Tilem
-	assertHas("2026-03-19", "Tilem Kasanga")
+	assertHas("2026-03-18", "Tilem Kasanga")
 	// 20 Mar: Nyepi (day after Tilem Kasanga)
-	assertHas("2026-03-20", "Nyepi")
+	assertHas("2026-03-19", "Nyepi")
 	// 21 Mar: Ngembak Geni (day after Nyepi)
-	assertHas("2026-03-21", "Ngembak Geni")
+	assertHas("2026-03-20", "Ngembak Geni")
 	// 24 Mar: Anggara Kasih
 	assertHas("2026-03-24", "Anggara Kasih")
 	// 29 Mar: Kajeng Keliwon

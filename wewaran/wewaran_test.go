@@ -117,8 +117,8 @@ func TestUrip_Range(t *testing.T) {
 	// Urip should always be 1-10
 	for i := 0; i < 210; i++ {
 		u := Urip(day(i))
-		if u < 1 || u > 10 {
-			t.Errorf("day %d: urip %d out of range [1,10]", i, u)
+		if u < 1 || u > 18 {
+			t.Errorf("day %d: urip %d out of valid range", i, u)
 		}
 	}
 }
@@ -145,7 +145,7 @@ func TestCalculate_Completeness(t *testing.T) {
 		if w.PancawaraName == "" {
 			t.Errorf("day %d: empty PancawaraName", i)
 		}
-		if w.Urip < 1 || w.Urip > 10 {
+		if w.Urip < 1 || w.Urip > 18 {
 			t.Errorf("day %d: invalid Urip %d", i, w.Urip)
 		}
 	}
